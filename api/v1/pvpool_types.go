@@ -49,7 +49,7 @@ type PvPoolStatus struct {
 	// CountByState holds the number of pods for each pod status
 	CountByState map[PvPodStatus]int32 `json:"countByState"`
 
-	// Shaul - Used storage percentage of the pool
+	// shaul - task #1 - Used storage percentage of the pool
 	UsedStoragePercentage float64 `json:"percentage"`
 }
 
@@ -84,7 +84,7 @@ const (
 	// PvPodStatusReady means that the pod is ready and operating
 	PvPodStatusReady = "Ready"
 
-	// PvPodStatusReady means that the pod is in an unknown state
+	// PvPodStatusUnknown means that the pod is in an unknown state
 	PvPodStatusUnknown = "Unknown"
 
 	// PvPodStatusDecommissioning means that the pod is being deleted

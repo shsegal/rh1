@@ -372,8 +372,9 @@ func (r *PvPoolReconciler) reconcilePvPoolStatefulset(pvp *pvpoolv1.PvPool, sts 
 		// set the phase to "Scaling"
 		newStatus.Phase = pvpoolv1.PvPoolPhaseScaling
 
-		//TODO: shaul - how to get to the pod that is being decommissioned?
-		//r.getPodURL(pod.Name, pod.Spec.Subdomain, pod.Namespace))
+		//TODO: shaul - task #2
+		safePodDecommissioning(r)
+
 	} else if newStatus.CountByState[pvpoolv1.PvPodStatusReady] == pvp.Spec.NumPVs {
 		// in this case the sts is reconciled (numPvs == sts.Spec.Replicas) and all pods are ready
 		// mark the status as ready
@@ -397,6 +398,24 @@ func (r *PvPoolReconciler) reconcilePvPoolStatefulset(pvp *pvpoolv1.PvPool, sts 
 
 }
 
+//we'll ignore errors for now, as we just want to find those pods that are safe to decommission
+func safePodDecommissioning(r *PvPoolReconciler) {
+	podList := &corev1.PodList{}
+	for _, pod := range podList.Items {
+		//state := pvpoolv1.PvPodStatus(pvpoolv1.PvPodStatusUnknown)
+		agentStatus, err := r.getStorageAgentStatus(r.getPodURL(pod.Name, pod.Spec.Subdomain, pod.Namespace))
+		if err == nil {
+			state := pvpoolv1.PvPodStatus(agentStatus.State)
+			//After decommission is called the storage-agent will enter a decommissioning state, then it is safe to remove the pod
+			if state == pvpoolv1.PvPodStatusDecommissioning	{
+				//call decommissionStorageAgent on pods which are in 'decommissioned' state
+				err = r.decommissionStorageAgent(r.getPodURL(pod.Name, pod.Spec.Subdomain, pod.Namespace))
+			}
+			r.Log.Info("got agentStatus", "status", agentStatus)
+		}
+	}
+}
+
 func (r *PvPoolReconciler) collectPodsStatus(pvpStatus *pvpoolv1.PvPoolStatus, list *corev1.PodList) error {
 	var totalUsed, totalSpace int64 = 0 ,0
 	for _, pod := range list.Items {
@@ -406,14 +425,16 @@ func (r *PvPoolReconciler) collectPodsStatus(pvpStatus *pvpoolv1.PvPoolStatus, l
 			r.Log.Info("got error when trying to get storage agent status. setting the state to unknown", "pod name", pod.Name, "error", err)
 		} else {
 			state = pvpoolv1.PvPodStatus(agentStatus.State)
+			//TODO: shaul - task #1
 			totalUsed += agentStatus.Used
 			totalSpace += agentStatus.Total
+
 			r.Log.Info("got agentStatus", "status", agentStatus)
 		}
 		pvpStatus.PodsInfo = append(pvpStatus.PodsInfo, pvpoolv1.PvPodSInfo{PodName: pod.Name, PodStatus: state})
 		pvpStatus.CountByState[state]++
 
-		//Shaul test used storage percentage
+		// Shaul test used storage percentage
 		//totalUsed += 10
 		//totalSpace += 20
 	}
